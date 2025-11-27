@@ -1,37 +1,55 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
-const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const dotenv = require('dotenv');
+const cors = require('cors');
 const path = require('path');
+const connectDB = require('./config/db');
 
+// 1. Config
 dotenv.config();
+connectDB();
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
 
+// 2. Middleware
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
-
-// Routes
-app.use('/api/reports', require('./routes/reports'));
-// app.use('/api/auth', require('./routes/auth')); // (Assume Auth route exists similarly)
-
-// Socket.io (Real-time Chat & Feed)
-io.on('connection', (socket) => {
-  console.log('User connected');
-  
-  socket.on('newPost', (post) => {
-    io.emit('receivePost', post); // Broadcast to all
-  });
-
-  socket.on('disconnect', () => console.log('User disconnected'));
+// 3. Socket.io
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    methods: ["GET", "POST"]
+  }
 });
 
-server.listen(5000, () => console.log("Server running on 5000"));
+// Pass 'io' to routes
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// 4. Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
+
+// 5. Chatbot Socket Logic (Echoing frontend steps)
+io.on('connection', (socket) => {
+  console.log(`🔌 User Connected: ${socket.id}`);
+
+  // We only log here. The logic is handled by frontend state, 
+  // but we can listen for logs or analytics here.
+  socket.on('send_message', (data) => {
+    console.log(`Msg from ${data.username}: ${data.message}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User Disconnected');
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`🛡️  AnonSafety Server running on port ${PORT}`));

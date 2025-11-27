@@ -4,9 +4,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Register User
+// Register
 router.post('/register', async (req, res) => {
-  const { username, email, password, region } = req.body;
+  // Destructure emailNotifications
+  const { username, email, password, region, emailNotifications } = req.body;
   try {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: 'User already exists' });
@@ -14,18 +15,27 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({ username, email, password: hashedPassword, region });
+    user = new User({ 
+      username, 
+      email, 
+      password: hashedPassword, 
+      region,
+      emailNotifications: emailNotifications || false 
+    });
+
     await user.save();
 
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, region: user.region } });
+      res.json({ token, user: { id: user.id, username: user.username, region: user.region, emailNotifications: user.emailNotifications } });
     });
-  } catch (err) { res.status(500).send('Server error'); }
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
 });
 
-// Login User
+// Login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -36,11 +46,13 @@ router.post('/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ msg: 'Invalid Credentials' });
 
     const payload = { user: { id: user.id } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: 360000 }, (err, token) => {
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, region: user.region } });
+      res.json({ token, user: { id: user.id, username: user.username, region: user.region, emailNotifications: user.emailNotifications } });
     });
-  } catch (err) { res.status(500).send('Server error'); }
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
 });
 
 module.exports = router;
